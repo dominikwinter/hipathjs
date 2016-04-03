@@ -1,0 +1,97 @@
+#!/bin/env node
+/* vim: set ft=javascript: */
+
+HOST = null;
+PORT = 8000;
+HOME = "/var/www/dominik/af/";
+MIME = "/etc/mime.types";
+
+var
+    fs     = require("fs"),
+    url    = require("url"),
+    path   = require("path"),
+    crypto = require('crypto'),
+    mimes  = {},
+    modifiedTimeCache = {}
+;
+
+function trim(string) {
+   return string.replace(/^\s*|\s*$/, '');
+}
+
+/**
+ * get mime types
+ */
+fs.readFileSync(MIME, 'utf8').split("\n").forEach(function (line) {
+   var parts = line.split("\t")
+
+   if (parts.length < 2) {
+      return;
+   }
+
+   trim(parts[parts.length -1]).split(" ").forEach(function (extension) {
+      mimes[extension] = trim(parts[0]);
+   });
+});
+
+
+require("http").createServer(function (req, res) {
+    var
+       uri      = url.parse(req.url).pathname,
+       filename = path.join(HOME, uri),
+       modsince = Date.parse(req.headers["if-modified-since"] || req.headers["if-unmodified-since"])
+    ;
+
+    console.info("[ " + req.connection.remoteAddress + " ] " + filename);
+
+    if (modifiedTimeCache[filename] && modifiedTimeCache[filename] <= modsince) {
+        res.writeHead(304);
+        res.end();
+        return;
+    }
+
+    fs.stat(filename, function(err, stats) {
+        err && console.info(err.message);
+
+        switch (true) {
+            case stats === undefined || err:
+            case ! stats.isFile():
+                res.writeHead(404);
+                res.end();
+                return;
+
+            case ! isNaN(modsince) && stats.mtime <= modsince:
+                modifiedTimeCache[filename] = stats.mktime;
+                res.writeHead(304);
+                res.end();
+                return;
+
+            default:
+                fs.readFile(filename, function (err, data) {
+                    if (err) {
+                        console.info(err);
+                        res.writeHead(500, { "Content-Type": mimes["txt"] });
+                        res.end(err);
+                        return;
+                    }
+
+                    modifiedTimeCache[filename] = stats.mktime;
+
+                    res.writeHead(200, {
+                        "Content-Type": mimes[path.extname(filename).substr(1)],
+                        "Last-Modified": (new Date).toGMTString(),
+                        "Etag": crypto.createHash("md5")
+                            .update(filename)
+                            .update(new Date)
+                            .digest("hex")
+                    });
+                    res.write(data, "binary");
+                    res.end();
+                });
+                return;
+        }
+
+    });
+}).listen(Number(PORT), HOST);
+
+console.info("Server at http://" + (HOST || "127.0.0.1") + ":" + PORT.toString() + "/");

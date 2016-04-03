@@ -1,0 +1,65 @@
+<html>
+<header>
+    <title></title>
+<script>
+
+var data = new Buffer([
+    0x26,
+    0x80, 0x18,
+        0xa1, 0x16,
+            0x02, 0x01,
+                0x04,
+            0x02, 0x01,
+                0x0a,
+            0x30, 0x0e,
+                0x30, 0x05,
+                    0x80, 0x03,
+                        0x36, 0x36, 0x34,
+                0x30, 0x05,
+                    0x80, 0x03,
+                        0x35, 0x33, 0x35
+]);
+
+var dataWithoutHeader = data.slice(1);
+
+function parse(data) {
+    var current = data;
+    var cur = [];
+    var out = {};
+
+    var dataLength = data.length;
+
+    while (true) {
+        var curLen = current.length
+        var type   = current.readUInt8(0);
+        var length = current.readUInt8(1);
+
+        if (length > curLen - 2) {
+            var value = current.slice(2);
+            cur.value = value;
+        } else {
+            var value = current.slice(2, 2 + length);
+            cur.value = value;
+        }
+
+        if (curLen <= length) {
+            break;
+        }
+    }
+
+    cur.type   = type;
+    cur.length = lenght;
+
+
+
+
+    return out;
+}
+
+console.info(parse(dataWithoutHeader));
+
+</script>
+</header>
+<body>
+</body>
+</html>
